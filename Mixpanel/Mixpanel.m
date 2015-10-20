@@ -9,10 +9,13 @@
 #include <sys/sysctl.h>
 
 #import <CommonCrypto/CommonDigest.h>
-#import <CoreTelephony/CTCarrier.h>
-#import <CoreTelephony/CTTelephonyNetworkInfo.h>
 #import <SystemConfiguration/SystemConfiguration.h>
 #import <UIKit/UIDevice.h>
+
+#if !TARGET_OS_TV
+#import <CoreTelephony/CTCarrier.h>
+#import <CoreTelephony/CTTelephonyNetworkInfo.h>
+#endif
 
 #import "Mixpanel.h"
 #import "MPLogger.h"
@@ -37,11 +40,11 @@
 
 #define VERSION @"2.9.0"
 
-#if !defined(MIXPANEL_APP_EXTENSION)
-@interface Mixpanel () <UIAlertViewDelegate, MPSurveyNavigationControllerDelegate, MPNotificationViewControllerDelegate>
+#if !defined(MIXPANEL_APP_EXTENSION) && !TARGET_OS_TV
+@interface Mixpanel () <MPSurveyNavigationControllerDelegate, MPNotificationViewControllerDelegate>
 
 #else
-@interface Mixpanel () <UIAlertViewDelegate>
+@interface Mixpanel ()
 
 #endif
 {
@@ -61,7 +64,9 @@
 @property (nonatomic, assign) UIBackgroundTaskIdentifier taskId;
 @property (nonatomic, strong) dispatch_queue_t serialQueue;
 @property (nonatomic, assign) SCNetworkReachabilityRef reachability;
+#if !TARGET_OS_TV
 @property (nonatomic, strong) CTTelephonyNetworkInfo *telephonyInfo;
+#endif
 @property (nonatomic, strong) NSDateFormatter *dateFormatter;
 @property (nonatomic, strong) NSMutableDictionary *timedEvents;
 
@@ -159,7 +164,9 @@ static Mixpanel *sharedInstance = nil;
 
         self.distinctId = [self defaultDistinctId];
         self.superProperties = [NSMutableDictionary dictionary];
+#if !TARGET_OS_TV
         self.telephonyInfo = [[CTTelephonyNetworkInfo alloc] init];
+#endif
         self.automaticProperties = [self collectAutomaticProperties];
         self.eventsQueue = [NSMutableArray array];
         self.peopleQueue = [NSMutableArray array];
@@ -194,9 +201,11 @@ static Mixpanel *sharedInstance = nil;
 #endif
 #endif
 
+#if !TARGET_OS_TV
         if (launchOptions && launchOptions[UIApplicationLaunchOptionsRemoteNotificationKey]) {
             [self trackPushNotification:launchOptions[UIApplicationLaunchOptionsRemoteNotificationKey] event:@"$app_open"];
         }
+#endif
     }
     return self;
 }
@@ -915,7 +924,7 @@ static __unused NSString *MPURLEncode(NSString *s)
     return ifa;
 }
 
-#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 70000
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 70000 && !TARGET_OS_TV
 - (void)setCurrentRadio
 {
     dispatch_async(self.serialQueue, ^(){
@@ -948,14 +957,17 @@ static __unused NSString *MPURLEncode(NSString *s)
     UIDevice *device = [UIDevice currentDevice];
     NSString *deviceModel = [self deviceModel];
     CGSize size = [UIScreen mainScreen].bounds.size;
-    CTCarrier *carrier = [self.telephonyInfo subscriberCellularProvider];
 
     // Use setValue semantics to avoid adding keys where value can be nil.
     [p setValue:[[NSBundle mainBundle] infoDictionary][@"CFBundleVersion"] forKey:@"$app_version"];
     [p setValue:[[NSBundle mainBundle] infoDictionary][@"CFBundleShortVersionString"] forKey:@"$app_release"];
     [p setValue:[self IFA] forKey:@"$ios_ifa"];
-    [p setValue:carrier.carrierName forKey:@"$carrier"];
     [p setValue:[self watchModel] forKey:@"$watch_model"];
+
+#if !TARGET_OS_TV
+    CTCarrier *carrier = [self.telephonyInfo subscriberCellularProvider];
+    [p setValue:carrier.carrierName forKey:@"$carrier"];
+#endif
 
     [p addEntriesFromDictionary:@{
                                   @"mp_lib": @"iphone",
@@ -982,7 +994,7 @@ static __unused NSString *MPURLEncode(NSString *s)
 
 - (void)updateNetworkActivityIndicator:(BOOL)on
 {
-#if !defined(MIXPANEL_APP_EXTENSION)
+#if !defined(MIXPANEL_APP_EXTENSION) && !TARGET_OS_TV
     if (_showNetworkActivityIndicator) {
         [UIApplication sharedApplication].networkActivityIndicatorVisible = on;
     }
@@ -1016,7 +1028,7 @@ static __unused NSString *MPURLEncode(NSString *s)
     NSNotificationCenter *notificationCenter = [NSNotificationCenter defaultCenter];
 
     // cellular info
-#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 70000
+#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 70000 && !TARGET_OS_TV
     if (floor(NSFoundationVersionNumber) > NSFoundationVersionNumber_iOS_6_1) {
         [self setCurrentRadio];
         [notificationCenter addObserver:self
@@ -1057,7 +1069,9 @@ static __unused NSString *MPURLEncode(NSString *s)
         UILongPressGestureRecognizer *recognizer = [[UILongPressGestureRecognizer alloc] initWithTarget:self action:@selector(connectGestureRecognized:)];
         recognizer.minimumPressDuration = 3;
         recognizer.cancelsTouchesInView = NO;
-#if TARGET_IPHONE_SIMULATOR
+#if TARGET_OS_TV
+        // Nothing
+#elif TARGET_IPHONE_SIMULATOR
         recognizer.numberOfTouchesRequired = 2;
 #else
         recognizer.numberOfTouchesRequired = 4;
@@ -1100,11 +1114,13 @@ static void MixpanelReachabilityCallback(SCNetworkReachabilityRef target, SCNetw
         NSDate *start = [NSDate date];
 
         [self checkForDecideResponseWithCompletion:^(NSArray *surveys, NSArray *notifications, NSSet *variants, NSSet *eventBindings) {
+#if !TARGET_OS_TV
             if (self.showNotificationOnActive && notifications && [notifications count] > 0) {
                 [self showNotificationWithObject:notifications[0]];
             } else if (self.showSurveyOnActive && surveys && [surveys count] > 0) {
                 [self showSurveyWithObject:surveys[0] withAlert:([start timeIntervalSinceNow] < -2.0)];
             }
+#endif
 
             dispatch_sync(dispatch_get_main_queue(), ^{
                 for (MPVariant *variant in variants) {
@@ -1428,8 +1444,7 @@ static void MixpanelReachabilityCallback(SCNetworkReachabilityRef target, SCNetw
             } else {
                 self.currentlyShowingSurvey = survey;
                 if (showAlert) {
-#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 80000
-                    if ([[[UIDevice currentDevice] systemVersion] compare:@"8.0" options:NSNumericSearch] != NSOrderedAscending) {
+
                         UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"We'd love your feedback!" message:@"Mind taking a quick survey?" preferredStyle:UIAlertControllerStyleAlert];
                         [alert addAction:[UIAlertAction actionWithTitle:@"No, Thanks" style:UIAlertActionStyleCancel handler:^(UIAlertAction *action) {
                             if (self.currentlyShowingSurvey) {
@@ -1442,23 +1457,9 @@ static void MixpanelReachabilityCallback(SCNetworkReachabilityRef target, SCNetw
                                 [self presentSurveyWithRootViewController:self.currentlyShowingSurvey];
                             }
                         }]];
+
                         [[Mixpanel topPresentedViewController] presentViewController:alert animated:YES completion:nil];
-                    } else {
-                        UIAlertView *alert = [[UIAlertView alloc] initWithTitle:@"We'd love your feedback!"
-                                                                        message:@"Mind taking a quick survey?"
-                                                                       delegate:self
-                                                              cancelButtonTitle:@"No, Thanks"
-                                                              otherButtonTitles:@"Sure", nil];
-                        [alert show];
-                    }
-#else
-                    UIAlertView *alert = [[UIAlertView alloc] initWithTitle:@"We'd love your feedback!"
-                                                                    message:@"Mind taking a quick survey?"
-                                                                   delegate:self
-                                                          cancelButtonTitle:@"No, Thanks"
-                                                          otherButtonTitles:@"Sure", nil];
-                    [alert show];
-#endif
+
                 } else {
                     [self presentSurveyWithRootViewController:survey];
                 }
@@ -1532,19 +1533,8 @@ static void MixpanelReachabilityCallback(SCNetworkReachabilityRef target, SCNetw
     }
 }
 
-- (void)alertView:(UIAlertView *)alertView didDismissWithButtonIndex:(NSInteger)buttonIndex
-{
-    if (_currentlyShowingSurvey) {
-        if (buttonIndex == 1) {
-            [self presentSurveyWithRootViewController:_currentlyShowingSurvey];
-        } else {
-            [self markSurvey:_currentlyShowingSurvey shown:NO withAnswerCount:0];
-            self.currentlyShowingSurvey = nil;
-        }
-    }
-}
-
 #pragma mark - Mixpanel Notifications
+#if !TARGET_OS_TV
 
 - (void)showNotification
 {
@@ -1714,6 +1704,7 @@ static void MixpanelReachabilityCallback(SCNetworkReachabilityRef target, SCNetw
 
     [self trackNotification:notification event:@"$campaign_delivery"];
 }
+#endif
 
 #pragma mark - Mixpanel A/B Testing (Designer)
 

@@ -312,7 +312,9 @@
     self.view.frame = CGRectMake(0.0f, 0.0f, 0.0f, 30.0f);
 
     UITapGestureRecognizer *gesture = [[UITapGestureRecognizer alloc] initWithTarget:self action:@selector(didTap:)];
+#if !TARGET_OS_TV
     gesture.numberOfTouchesRequired = 1;
+#endif
     [self.view addGestureRecognizer:gesture];
 
     UIPanGestureRecognizer *pan = [[UIPanGestureRecognizer alloc] initWithTarget:self action:@selector(didPan:)];
@@ -350,27 +352,10 @@
     CGSize constraintSize = CGSizeMake(self.view.frame.size.width - MPNotifHeight - 12.5f, CGFLOAT_MAX);
     CGSize sizeToFit;
     // Use boundingRectWithSize for iOS 7 and above, sizeWithFont otherwise.
-#if __IPHONE_OS_VERSION_MAX_ALLOWED >= 70000
-    if ([[[UIDevice currentDevice] systemVersion] compare:@"7.0" options:NSNumericSearch] != NSOrderedAscending) {
-        sizeToFit = [self.bodyLabel.text boundingRectWithSize:constraintSize
-                                                  options:NSStringDrawingUsesLineFragmentOrigin
-                                               attributes:@{NSFontAttributeName: self.bodyLabel.font}
-                                                  context:nil].size;
-    } else {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated"
-
-        sizeToFit = [self.bodyLabel.text sizeWithFont:self.bodyLabel.font
-                                constrainedToSize:constraintSize
-                                    lineBreakMode:self.bodyLabel.lineBreakMode];
-
-#pragma clang diagnostic pop
-    }
-#else
-        sizeToFit = [self.bodyLabel.text sizeWithFont:self.bodyLabel.font
-                                constrainedToSize:constraintSize
-                                    lineBreakMode:self.bodyLabel.lineBreakMode];
-#endif
+    sizeToFit = [self.bodyLabel.text boundingRectWithSize:constraintSize
+                                              options:NSStringDrawingUsesLineFragmentOrigin
+                                           attributes:@{NSFontAttributeName: self.bodyLabel.font}
+                                              context:nil].size;
 
     self.bodyLabel.frame = CGRectMake(MPNotifHeight, (CGFloat)ceil((MPNotifHeight - sizeToFit.height) / 2.0f) - 2.0f, (CGFloat)ceil(sizeToFit.width), (CGFloat)ceil(sizeToFit.height));
 }
@@ -389,6 +374,7 @@
     return topView;
 }
 
+#if !TARGET_OS_TV
 - (double)angleForInterfaceOrientation:(UIInterfaceOrientation)orientation
 {
     switch (orientation) {
@@ -402,6 +388,7 @@
             return 0.0;
     }
 }
+#endif
 
 - (void)showWithAnimation
 {

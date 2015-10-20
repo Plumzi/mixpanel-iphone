@@ -22,10 +22,13 @@
     CGFloat offsetHeight = 0.0f;
     
     //Avoid the status bar on phones running iOS < 7
+#if !TARGET_OS_TV
     if ([[[UIDevice currentDevice] systemVersion] compare:@"7.0" options:NSNumericSearch] == NSOrderedAscending &&
         ![UIApplication sharedApplication].statusBarHidden) {
         offsetHeight = [UIApplication sharedApplication].statusBarFrame.size.height;
     }
+#endif
+
     CGSize size = self.layer.bounds.size;
     size.height -= offsetHeight;
     UIGraphicsBeginImageContext(size);

@@ -5,15 +5,17 @@ Pod::Spec.new do |s|
   s.homepage     = 'https://mixpanel.com'
   s.license      = 'Apache License, Version 2.0'
   s.author       = { 'Mixpanel, Inc' => 'support@mixpanel.com' }
-  s.platform     = :ios, '6.0'
+  s.platforms    = { :ios => '8.0', :tvos => '9.0' }
   s.source       = { :git => 'https://github.com/mixpanel/mixpanel-iphone.git', :tag => "v#{s.version}" }
   s.requires_arc = true
   s.default_subspec = 'Mixpanel'
 
   s.subspec 'Mixpanel' do |ss|
     ss.source_files  = 'Mixpanel/**/*.{m,h}', 'Mixpanel/**/*.swift'
-    ss.resources 	 = ['Mixpanel/**/*.{png,storyboard}']
-    ss.frameworks = 'UIKit', 'Foundation', 'SystemConfiguration', 'CoreTelephony', 'Accelerate', 'CoreGraphics', 'QuartzCore'
+    ss.tvos.exclude_files = 'Mixpanel/**/*Controller.{h,m}'
+    ss.resources = ['Mixpanel/**/*.{png,storyboard}']
+    ss.ios.frameworks = 'UIKit', 'Foundation', 'SystemConfiguration', 'CoreTelephony', 'Accelerate', 'CoreGraphics', 'QuartzCore'
+    ss.tvos.frameworks = 'UIKit', 'Foundation', 'SystemConfiguration', 'Accelerate', 'CoreGraphics', 'QuartzCore'
     ss.libraries = 'icucore'
   end
 
